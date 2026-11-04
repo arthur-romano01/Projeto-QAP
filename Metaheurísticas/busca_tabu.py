@@ -1,4 +1,4 @@
-import numpy as np
+﻿import numpy as np
 import random
 import time
 from pathlib import Path
@@ -66,7 +66,9 @@ class SolucionadorQAP:
 
 if __name__ == "__main__":
     BASE_DIR = Path(__file__).resolve().parent
-    caminho_instancia = BASE_DIR / "data" / "instances" / "nug12.dat"
+    caminho_instancia = BASE_DIR.parent / "data" / "instances" / "nug12.dat"
+    if not caminho_instancia.exists():
+        caminho_instancia = BASE_DIR / "data" / "instances" / "nug12.dat"
     
     print(f"Carregando instância: {caminho_instancia.name}...\n")
     
