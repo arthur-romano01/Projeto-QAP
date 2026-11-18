@@ -34,14 +34,21 @@ def salvar_individual(nome_arquivo, titulo, params, registros):
     (PASTA_RESULTADOS / nome_arquivo).write_text("\n".join(linhas), encoding="utf-8")
 
 
-def salvar_comparativo(linhas_tabela):
+def _linha_tabela(celulas):
+    return "| " + " | ".join(str(celula) for celula in celulas) + " |"
+
+
+def salvar_comparativo(rotulos, linhas_tabela):
     PASTA_RESULTADOS.mkdir(parents=True, exist_ok=True)
+    colunas = ["Instância", "n", "Ótimo"]
+    for rotulo in rotulos:
+        colunas += [f"{rotulo} Custo", f"{rotulo} Gap", f"{rotulo} Tempo"]
+
     cabecalho = [
         "# Comparativo Geral - Metaheurísticas\n",
         f"- **Atualizado em:** {datetime.now().strftime('%d/%m/%Y %H:%M')}\n",
-        "| Instância | n | Ótimo | GRASP Custo | GRASP Gap | GRASP Tempo | SA Custo | SA Gap | SA Tempo |",
-        "| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |",
+        _linha_tabela(colunas),
+        _linha_tabela([":---"] + [":---:"] * (len(colunas) - 1)),
     ]
-    (PASTA_RESULTADOS / "comparativo_geral.md").write_text(
-        "\n".join(cabecalho + linhas_tabela) + "\n", encoding="utf-8"
-    )
+    linhas = cabecalho + [_linha_tabela(celulas) for celulas in linhas_tabela]
+    (PASTA_RESULTADOS / "comparativo_geral.md").write_text("\n".join(linhas) + "\n", encoding="utf-8")

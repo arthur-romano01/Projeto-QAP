@@ -1,51 +1,47 @@
 import sys
 import time
-from algoritmos.grasp import GRASP
-from algoritmos.sa import SimulatedAnnealing
-from config import OTIMOS_QAPLIB, PARAMS_GRASP, PARAMS_SA
+from algoritmos.registro import carregar_modelos
+from config import OTIMOS_QAPLIB
 from leitor import ler_instancia, listar_instancias
 from relatorio import calcular_gap, formatar_bloco, salvar_comparativo, salvar_individual
 
 
-def rodar_modelo(classe, params, distancias, fluxos, titulo, arquivo, chave):
+def rodar_modelo(modelo, distancias, fluxos, arquivo, chave):
     t0 = time.perf_counter()
-    solucao, custo = classe(distancias, fluxos).executar(**params)
+    solucao, custo = modelo.classe(distancias, fluxos).executar(**modelo.params)
     tempo = time.perf_counter() - t0
     gap = calcular_gap(custo, chave)
-    bloco = formatar_bloco(titulo, arquivo, custo, solucao, tempo, gap)
+    bloco = formatar_bloco(modelo.nome.upper(), arquivo, custo, solucao, tempo, gap)
     print(bloco + "\n")
     return custo, gap, f"{tempo:.3f}s", bloco
 
 
 def main(filtro="todos"):
-    reg_grasp, reg_sa, tabela = [], [], []
+    modelos = carregar_modelos()
+    if filtro != "todos" and filtro not in modelos:
+        sys.exit(f"Modelo desconhecido: {filtro}. Opções: todos, {', '.join(modelos)}")
+
+    selecionados = list(modelos.values()) if filtro == "todos" else [modelos[filtro]]
+    registros = {modelo.chave: [] for modelo in selecionados}
+    tabela = []
 
     for caminho in listar_instancias():
         chave = caminho.stem
         n, distancias, fluxos = ler_instancia(caminho)
-        otimo = OTIMOS_QAPLIB.get(chave, "N/A")
-        res = {}
+        celulas = [f"`{caminho.name}`", n, OTIMOS_QAPLIB.get(chave, "N/A")]
 
-        if filtro in ("todos", "grasp"):
-            custo, gap, dt, bloco = rodar_modelo(GRASP, PARAMS_GRASP, distancias, fluxos, "GRASP", caminho.name, chave)
-            reg_grasp.append({"arquivo": caminho.name, "n": n, "bloco": bloco})
-            res["grasp"] = (custo, gap, dt)
+        for modelo in selecionados:
+            custo, gap, dt, bloco = rodar_modelo(modelo, distancias, fluxos, caminho.name, chave)
+            registros[modelo.chave].append({"arquivo": caminho.name, "n": n, "bloco": bloco})
+            celulas += [custo, gap, dt]
 
-        if filtro in ("todos", "sa"):
-            custo, gap, dt, bloco = rodar_modelo(SimulatedAnnealing, PARAMS_SA, distancias, fluxos, "SIM. ANNEALING", caminho.name, chave)
-            reg_sa.append({"arquivo": caminho.name, "n": n, "bloco": bloco})
-            res["sa"] = (custo, gap, dt)
+        tabela.append(celulas)
 
-        if filtro == "todos":
-            g, s = res["grasp"], res["sa"]
-            tabela.append(f"| `{caminho.name}` | {n} | {otimo} | {g[0]} | {g[1]} | {g[2]} | {s[0]} | {s[1]} | {s[2]} |")
+    for modelo in selecionados:
+        salvar_individual(f"resultados_{modelo.chave}.md", modelo.nome, modelo.params, registros[modelo.chave])
 
-    if reg_grasp:
-        salvar_individual("resultados_grasp.md", "GRASP", PARAMS_GRASP, reg_grasp)
-    if reg_sa:
-        salvar_individual("resultados_sa.md", "Simulated Annealing", PARAMS_SA, reg_sa)
-    if tabela:
-        salvar_comparativo(tabela)
+    if filtro == "todos":
+        salvar_comparativo([modelo.rotulo for modelo in selecionados], tabela)
 
 
 if __name__ == "__main__":
