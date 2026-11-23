@@ -100,6 +100,11 @@ A partir da raiz do repositório:
 
 *(Ou entrando na pasta com `cd Modelo-Matemático` e executando `python main.py`)*
 
+Por padrão os modelos resolvem `nug12`. Para outra instância de `data/instances/`, passe o nome e, se quiser, um limite de tempo em segundos:
+```bash
+python Modelo-Matemático/qap_quadratic.py chr15a --tempo-limite 600
+```
+
 ### 3. Executando as Metaheurísticas
 A partir da raiz do repositório:
 - **Busca Tabu:**
