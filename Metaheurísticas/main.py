@@ -1,6 +1,7 @@
 import sys
 import time
 from algoritmos.registro import carregar_modelos
+from benchmark import aquecer_compilacao
 from config import OTIMOS_QAPLIB
 from leitor import ler_instancia, listar_instancias
 from relatorio import calcular_gap, formatar_bloco, salvar_comparativo, salvar_individual
@@ -21,7 +22,8 @@ def main(filtro="todos"):
     if filtro != "todos" and filtro not in modelos:
         sys.exit(f"Modelo desconhecido: {filtro}. Opções: todos, {', '.join(modelos)}")
 
-    selecionados = list(modelos.values()) if filtro == "todos" else [modelos[filtro]]
+    selecionados = [modelos[chave] for chave in sorted(modelos)] if filtro == "todos" else [modelos[filtro]]
+    aquecer_compilacao()
     registros = {modelo.chave: [] for modelo in selecionados}
     tabela = []
 
