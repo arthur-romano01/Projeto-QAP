@@ -137,11 +137,11 @@ Opções: `--execucoes` (30), `--varreduras` (800), `--semente` (0), `--processo
 
 | Instância | Ótimo | Koopmans-Beckmann (MIQP) | Kaufman & Broeckx (MILP) |
 | :--- | :---: | :---: | :---: |
-| `nug12` | 578 | 578, ótimo provado em 25 s | 578, ótimo provado em 198 s |
-| `chr15a` | 9896 | 9896, ótimo provado em 12 s | 9896, ótimo provado em 15 s |
-| `had18` | 5358 | 5358 (0.00%), sem prova: limitante 1670 | 5400 (0.78%), sem prova: limitante 678 |
+| `nug12` | 578 | 578, ótimo provado em 17 s | 578, ótimo provado em 88 s |
+| `chr15a` | 9896 | 9896, ótimo provado em 8 s | 9896, ótimo provado em 12 s |
+| `had18` | 5358 | 5358 (0.00%), sem prova: limitante 1664 | 5400 (0.78%), sem prova: limitante 678 |
 
-Em `had18` os dois modelos param no limite de tempo com limitante inferior fraco (gap do MIP de 69% e 87%), o que ilustra por que as metaheurísticas são necessárias a partir de $n \approx 18$.
+Em `had18` nenhum dos dois modelos prova a otimalidade em 600 s (gap do MIP de 69% e 87%).
 
 ### Metaheurísticas (`benchmark.py`, 30 sementes, 800 varreduras)
 
