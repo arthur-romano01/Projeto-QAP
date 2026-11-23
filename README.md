@@ -6,26 +6,36 @@ Projeto desenvolvido para a disciplina de **Pesquisa Operacional (UNIFESP)** com
 
 ## 📁 Estrutura do Projeto
 
-O repositório está organizado separando os métodos exatos (programação matemática) dos métodos aproximados (metaheurísticas), com compartilhamento centralizado dos dados de instâncias:
+O repositório separa os métodos exatos (programação matemática) dos métodos aproximados (metaheurísticas), com as instâncias e os resultados compartilhados:
 
 ```text
 Projeto-QAP/
 │
 ├── data/
-│   └── instances/
-│       └── nug12.dat          # Instância clássica de benchmark da QAPLIB (n = 12)
+│   └── instances/             # 10 instâncias da QAPLIB (nug12 a sko42)
 │
 ├── Metaheurísticas/
-│   ├── busca_tabu.py          # Busca Tabu com estrutura de vizinhança 2-opt
-│   └── temperagem_sim.py      # Têmpera Simulada (Simulated Annealing)
+│   ├── algoritmos/
+│   │   ├── grasp.py           # GRASP: construção gulosa aleatorizada + busca local
+│   │   ├── sa.py              # Simulated Annealing
+│   │   ├── busca_tabu.py      # Busca Tabu
+│   │   ├── delta.py           # Avaliação de trocas compilada com Numba
+│   │   └── registro.py        # Descoberta automática dos modelos
+│   ├── main.py                # Uma execução de cada modelo em todas as instâncias
+│   ├── benchmark.py           # Benchmark semeado com orçamento igual por modelo
+│   ├── config.py              # Caminhos e ótimos conhecidos da QAPLIB
+│   ├── leitor.py              # Leitura das instâncias
+│   └── relatorio.py           # Geração dos relatórios em Markdown
 │
 ├── Modelo-Matemático/
 │   ├── main.py                # Modelo exato linearizado (Kaufman & Broeckx - MILP)
-│   ├── qap_quadratic.py       # Modelo exato quadrático original (Koopmans-Beckmann - MIQP)
+│   ├── qap_quadratic.py       # Modelo exato quadrático (Koopmans-Beckmann - MIQP)
 │   └── requirements.txt       # Dependências específicas do módulo
 │
-├── requirements.txt           # Dependências do projeto (gurobipy, numpy)
-└── README.md                  # Documentação do projeto
+├── results/                   # Comparativo geral, resultados por modelo e benchmark
+├── docs/licenca-gurobi-wls.md # Como obter a licença acadêmica do Gurobi
+├── requirements.txt           # Dependências (gurobipy, numpy, numba)
+└── README.md
 ```
 
 ---
@@ -64,72 +74,90 @@ onde $M_{ij} = \sum_{k=0}^{n-1} \sum_{l=0}^{n-1} F_{ik} D_{jl}$.
 
 ## ⚡ Metaheurísticas (`Metaheurísticas/`)
 
-Para resolver instâncias de maior porte em que métodos exatos se tornam proibitivos computacionalmente, foram implementadas metaheurísticas em Python com operações vetorizadas via `NumPy`:
+Para instâncias maiores, em que os métodos exatos se tornam proibitivos, foram implementadas três metaheurísticas sobre a mesma representação: uma permutação de tamanho $n$ com vizinhança de trocas 2-opt (troca de pares de instalações).
 
-### 1. Busca Tabu (`busca_tabu.py`)
-* **Representação:** Permutação de tamanho $n$.
-* **Estrutura de Vizinhança:** Movimentos 2-opt (troca de pares de instalações).
-* **Memória Tabu:** Matriz que armazena pares proibidos por um determinado número de iterações para prevenir ciclos.
-* **Critério de Aspiração:** Permite movimentos tabu caso eles produzam uma solução estritamente melhor do que a melhor já encontrada globalmente.
+### 1. GRASP (`algoritmos/grasp.py`)
+* **Construção:** Gulosa aleatorizada. A cada passo calcula o custo incremental de todos os pares (instalação, local) livres e sorteia um da Lista Restrita de Candidatos (RCL), formada pelos pares com custo até $c_{min} + \alpha (c_{max} - c_{min})$.
+* **Busca Local:** Primeira melhora na vizinhança 2-opt até atingir um ótimo local.
+* **Multi-start:** Repete construção + busca local e guarda a melhor solução.
 
-### 2. Têmpera Simulada / Simulated Annealing (`temperagem_sim.py`)
+### 2. Simulated Annealing (`algoritmos/sa.py`)
 * **Perturbação:** Movimentos aleatórios 2-opt.
 * **Critério de Aceitação:** Critério de Metropolis ($e^{-\Delta / T}$) para aceitar soluções de piora com probabilidade controlada, escapando de ótimos locais.
 * **Esquema de Resfriamento:** Resfriamento geométrico progressivo ($T_{novo} = \alpha \cdot T_{atual}$).
+
+### 3. Busca Tabu (`algoritmos/busca_tabu.py`)
+* **Movimento:** Melhor troca não tabu da vizinhança 2-opt a cada iteração.
+* **Memória Tabu:** Matriz que proíbe pares recém-trocados por um número fixo de iterações para prevenir ciclos.
+* **Critério de Aspiração:** Permite movimentos tabu que produzam uma solução estritamente melhor que a melhor global.
+
+### Avaliação de trocas com Numba (`algoritmos/delta.py`)
+Nenhuma metaheurística recalcula o custo $O(n^2)$ a cada vizinho. A variação de custo $\Delta$ de uma troca é calculada em $O(n)$, e a Busca Tabu mantém a matriz com os $\Delta$ de todas as trocas, atualizada de forma incremental após cada movimento (Taillard). Essas rotinas são compiladas com `@njit` do Numba, com cache em disco.
+
+### Benchmark (`benchmark.py`)
+Para comparar os modelos de forma justa, cada um recebe o mesmo orçamento de avaliações de troca (por padrão, 800 varreduras da vizinhança, ou $800 \cdot n(n-1)/2$ avaliações) e é executado com 30 sementes por instância, em paralelo.
 
 ---
 
 ## 🚀 Como Executar
 
 ### 1. Instalar dependências
-Certifique-se de ter o Python 3.9+ e instale os pacotes necessários:
+Com Python 3.10+ (testado no 3.14):
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Executando os Modelos Matemáticos Exatos
-A partir da raiz do repositório:
-- **Modelo Linearizado (Kaufman & Broeckx):**
-  ```bash
-  python Modelo-Matemático/main.py
-  ```
-- **Modelo Quadrático (Koopmans-Beckmann):**
-  ```bash
-  python Modelo-Matemático/qap_quadratic.py
-  ```
-
-*(Ou entrando na pasta com `cd Modelo-Matemático` e executando `python main.py`)*
-
-Por padrão os modelos resolvem `nug12`. Para outra instância de `data/instances/`, passe o nome e, se quiser, um limite de tempo em segundos:
+### 2. Modelos exatos
+A partir da raiz do repositório. Por padrão resolvem `nug12`; passe outra instância de `data/instances/` e, se quiser, um limite de tempo em segundos:
 ```bash
-python Modelo-Matemático/qap_quadratic.py chr15a --tempo-limite 600
+python Modelo-Matemático/main.py                              # Kaufman & Broeckx (MILP)
+python Modelo-Matemático/qap_quadratic.py chr15a --tempo-limite 600   # Koopmans-Beckmann (MIQP)
+```
+Instâncias acima de $n = 14$ (quadrático) ou $n = 31$ (linearizado) exigem a licença acadêmica: veja [`docs/licenca-gurobi-wls.md`](docs/licenca-gurobi-wls.md).
+
+### 3. Metaheurísticas
+Uma execução de cada modelo em todas as instâncias. Gera `results/comparativo_geral.md` e `results/resultados_<modelo>.md`:
+```bash
+python Metaheurísticas/main.py          # todos os modelos
+python Metaheurísticas/main.py tabu     # só um: grasp, sa ou tabu
 ```
 
-### 3. Executando as Metaheurísticas
-A partir da raiz do repositório:
-- **Busca Tabu:**
-  ```bash
-  python Metaheurísticas/busca_tabu.py
-  ```
-- **Têmpera Simulada (Simulated Annealing):**
-  ```bash
-  python Metaheurísticas/temperagem_sim.py
-  ```
-
-*(Ou entrando na pasta com `cd Metaheurísticas` e executando `python busca_tabu.py`)*
-
-> **💡 Resolução Dinâmica de Caminhos (`pathlib`):**
-> Todos os scripts utilizam resolução de caminho que verifica tanto a pasta raiz quanto a pasta local (`BASE_DIR.parent / "data"` ou `BASE_DIR / "data"`). Dessa forma, qualquer script pode ser executado diretamente da raiz, de dentro da sua subpasta ou através do botão *Play* da IDE sem erros de `FileNotFoundError`.
+Benchmark semeado com orçamento igual. Gera `results/benchmark/execucoes.csv` e `results/benchmark/resumo.md`:
+```bash
+python Metaheurísticas/benchmark.py
+python Metaheurísticas/benchmark.py --execucoes 10 --modelos grasp tabu --instancias nug12 chr15a
+```
+Opções: `--execucoes` (30), `--varreduras` (800), `--semente` (0), `--processos` (metade dos núcleos), `--modelos`, `--instancias`, `--saida`.
 
 ---
 
-## 📊 Comparativo de Resultados (`nug12.dat`)
+## 📊 Comparativo de Resultados
 
-Desempenho obtido na instância de benchmark `nug12.dat` ($n = 12$):
+### Modelos exatos (Gurobi, limite de 600 s)
 
-| Método | Tipo | Custo Encontrado | Gap p/ Ótimo | Tempo Médio |
-| :--- | :--- | :---: | :---: | :---: |
-| **Koopmans-Beckmann (Gurobi)** | Exato (MIQP) | **578** | **0.00%** | ~20.5 s |
-| **Kaufman & Broeckx (Gurobi)** | Exato (MILP) | **578** | **0.00%** | ~109 s |
-| **Busca Tabu** | Metaheurística | **578** | **0.00%** | ~4.3 s |
-| **Simulated Annealing** | Metaheurística | **582** | **0.69%** | ~0.6 s |
+| Instância | Ótimo | Koopmans-Beckmann (MIQP) | Kaufman & Broeckx (MILP) |
+| :--- | :---: | :---: | :---: |
+| `nug12` | 578 | 578, ótimo provado em 25 s | 578, ótimo provado em 198 s |
+| `chr15a` | 9896 | 9896, ótimo provado em 12 s | 9896, ótimo provado em 15 s |
+| `had18` | 5358 | 5358 (0.00%), sem prova: limitante 1670 | 5400 (0.78%), sem prova: limitante 678 |
+
+Em `had18` os dois modelos param no limite de tempo com limitante inferior fraco (gap do MIP de 69% e 87%), o que ilustra por que as metaheurísticas são necessárias a partir de $n \approx 18$.
+
+### Metaheurísticas (`benchmark.py`, 30 sementes, 800 varreduras)
+
+Gap médio para o ótimo da QAPLIB e, entre parênteses, quantas das 30 execuções atingiram o ótimo. Detalhes em [`results/benchmark/resumo.md`](results/benchmark/resumo.md).
+
+| Instância | n | GRASP | SA | Busca Tabu |
+| :--- | :---: | :---: | :---: | :---: |
+| `nug12` | 12 | **0.05%** (29/30) | 1.23% (8/30) | 0.66% (21/30) |
+| `chr15a` | 15 | **6.53%** (0/30) | 16.18% (1/30) | 11.89% (2/30) |
+| `had18` | 18 | **0.00%** (29/30) | 0.12% (13/30) | 0.32% (15/30) |
+| `els19` | 19 | **3.50%** (1/30) | 8.69% (1/30) | 22.45% (1/30) |
+| `rou20` | 20 | 1.00% (0/30) | 1.63% (0/30) | **0.37%** (1/30) |
+| `bur26a` | 26 | **0.10%** (2/30) | 0.12% (2/30) | 0.23% (0/30) |
+| `kra30a` | 30 | 2.78% (0/30) | **2.37%** (2/30) | 4.93% (0/30) |
+| `nug30` | 30 | 1.21% (0/30) | 0.80% (0/30) | **0.54%** (0/30) |
+| `ste36a` | 36 | 3.91% (0/30) | **1.83%** (0/30) | 6.61% (0/30) |
+| `sko42` | 42 | 1.32% (0/30) | **0.56%** (1/30) | 1.11% (0/30) |
+
+Com o delta compilado, cada execução leva menos de 1 s mesmo em `sko42`. Uma execução única de cada modelo, sem semente, está em [`results/comparativo_geral.md`](results/comparativo_geral.md).
