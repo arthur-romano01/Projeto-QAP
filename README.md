@@ -18,7 +18,6 @@ Projeto-QAP/
 │   ├── algoritmos/
 │   │   ├── grasp.py           # GRASP: construção gulosa aleatorizada + busca local
 │   │   ├── sa.py              # Simulated Annealing
-│   │   ├── busca_tabu.py      # Busca Tabu
 │   │   ├── delta.py           # Avaliação de trocas compilada com Numba
 │   │   └── registro.py        # Descoberta automática dos modelos
 │   ├── main.py                # Uma execução de cada modelo em todas as instâncias
@@ -74,7 +73,7 @@ onde $M_{ij} = \sum_{k=0}^{n-1} \sum_{l=0}^{n-1} F_{ik} D_{jl}$.
 
 ## ⚡ Metaheurísticas (`Metaheurísticas/`)
 
-Para instâncias maiores, em que os métodos exatos se tornam proibitivos, foram implementadas três metaheurísticas sobre a mesma representação: uma permutação de tamanho $n$ com vizinhança de trocas 2-opt (troca de pares de instalações).
+Para instâncias maiores, em que os métodos exatos se tornam proibitivos, foram implementadas duas metaheurísticas sobre a mesma representação: uma permutação de tamanho $n$ com vizinhança de trocas 2-opt (troca de pares de instalações).
 
 ### 1. GRASP (`algoritmos/grasp.py`)
 * **Construção:** Gulosa aleatorizada. A cada passo calcula o custo incremental de todos os pares (instalação, local) livres e sorteia um da Lista Restrita de Candidatos (RCL), formada pelos pares com custo até $c_{min} + \alpha (c_{max} - c_{min})$.
@@ -86,13 +85,8 @@ Para instâncias maiores, em que os métodos exatos se tornam proibitivos, foram
 * **Critério de Aceitação:** Critério de Metropolis ($e^{-\Delta / T}$) para aceitar soluções de piora com probabilidade controlada, escapando de ótimos locais.
 * **Esquema de Resfriamento:** Resfriamento geométrico progressivo ($T_{novo} = \alpha \cdot T_{atual}$).
 
-### 3. Busca Tabu (`algoritmos/busca_tabu.py`)
-* **Movimento:** Melhor troca não tabu da vizinhança 2-opt a cada iteração.
-* **Memória Tabu:** Matriz que proíbe pares recém-trocados por um número fixo de iterações para prevenir ciclos.
-* **Critério de Aspiração:** Permite movimentos tabu que produzam uma solução estritamente melhor que a melhor global.
-
 ### Avaliação de trocas com Numba (`algoritmos/delta.py`)
-Nenhuma metaheurística recalcula o custo $O(n^2)$ a cada vizinho. A variação de custo $\Delta$ de uma troca é calculada em $O(n)$, e a Busca Tabu mantém a matriz com os $\Delta$ de todas as trocas, atualizada de forma incremental após cada movimento (Taillard). Essas rotinas são compiladas com `@njit` do Numba, com cache em disco.
+Nenhuma metaheurística recalcula o custo $O(n^2)$ a cada vizinho. A variação de custo $\Delta$ de uma troca é calculada em $O(n)$. Essas rotinas são compiladas com `@njit` do Numba, com cache em disco.
 
 ### Benchmark (`benchmark.py`)
 Para comparar os modelos de forma justa, cada um recebe o mesmo orçamento de avaliações de troca (por padrão, 800 varreduras da vizinhança, ou $800 \cdot n(n-1)/2$ avaliações) e é executado com 30 sementes por instância, em paralelo.
@@ -119,13 +113,13 @@ Instâncias acima de $n = 14$ (quadrático) ou $n = 31$ (linearizado) exigem a l
 Uma execução de cada modelo em todas as instâncias. Gera `results/comparativo_geral.md` e `results/resultados_<modelo>.md`:
 ```bash
 python Metaheurísticas/main.py          # todos os modelos
-python Metaheurísticas/main.py tabu     # só um: grasp, sa ou tabu
+python Metaheurísticas/main.py sa       # só um: grasp ou sa
 ```
 
 Benchmark semeado com orçamento igual. Gera `results/benchmark/execucoes.csv` e `results/benchmark/resumo.md`:
 ```bash
 python Metaheurísticas/benchmark.py
-python Metaheurísticas/benchmark.py --execucoes 10 --modelos grasp tabu --instancias nug12 chr15a
+python Metaheurísticas/benchmark.py --execucoes 10 --modelos grasp sa --instancias nug12 chr15a
 ```
 Opções: `--execucoes` (30), `--varreduras` (800), `--semente` (0), `--processos` (metade dos núcleos), `--modelos`, `--instancias`, `--saida`.
 
@@ -147,17 +141,17 @@ Em `had18` nenhum dos dois modelos prova a otimalidade em 600 s (gap do MIP de 6
 
 Gap médio para o ótimo da QAPLIB e, entre parênteses, quantas das 30 execuções atingiram o ótimo. Detalhes em [`results/benchmark/resumo.md`](results/benchmark/resumo.md).
 
-| Instância | n | GRASP | SA | Busca Tabu |
-| :--- | :---: | :---: | :---: | :---: |
-| `nug12` | 12 | **0.05%** (29/30) | 1.23% (8/30) | 0.66% (21/30) |
-| `chr15a` | 15 | **6.53%** (0/30) | 16.18% (1/30) | 11.89% (2/30) |
-| `had18` | 18 | **0.00%** (29/30) | 0.12% (13/30) | 0.32% (15/30) |
-| `els19` | 19 | **3.50%** (1/30) | 8.69% (1/30) | 22.45% (1/30) |
-| `rou20` | 20 | 1.00% (0/30) | 1.63% (0/30) | **0.37%** (1/30) |
-| `bur26a` | 26 | **0.10%** (2/30) | 0.12% (2/30) | 0.23% (0/30) |
-| `kra30a` | 30 | 2.78% (0/30) | **2.37%** (2/30) | 4.93% (0/30) |
-| `nug30` | 30 | 1.21% (0/30) | 0.80% (0/30) | **0.54%** (0/30) |
-| `ste36a` | 36 | 3.91% (0/30) | **1.83%** (0/30) | 6.61% (0/30) |
-| `sko42` | 42 | 1.32% (0/30) | **0.56%** (1/30) | 1.11% (0/30) |
+| Instância | n | GRASP | SA |
+| :--- | :---: | :---: | :---: |
+| `nug12` | 12 | **0.05%** (29/30) | 1.23% (8/30) |
+| `chr15a` | 15 | **6.53%** (0/30) | 16.18% (1/30) |
+| `had18` | 18 | **0.00%** (29/30) | 0.12% (13/30) |
+| `els19` | 19 | **3.50%** (1/30) | 8.69% (1/30) |
+| `rou20` | 20 | **1.00%** (0/30) | 1.63% (0/30) |
+| `bur26a` | 26 | **0.10%** (2/30) | 0.12% (2/30) |
+| `kra30a` | 30 | 2.78% (0/30) | **2.37%** (2/30) |
+| `nug30` | 30 | 1.21% (0/30) | **0.80%** (0/30) |
+| `ste36a` | 36 | 3.91% (0/30) | **1.83%** (0/30) |
+| `sko42` | 42 | 1.32% (0/30) | **0.56%** (1/30) |
 
 Com o delta compilado, cada execução leva menos de 1 s mesmo em `sko42`. Uma execução única de cada modelo, sem semente, está em [`results/comparativo_geral.md`](results/comparativo_geral.md).
