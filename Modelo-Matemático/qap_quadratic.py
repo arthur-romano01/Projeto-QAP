@@ -1,3 +1,4 @@
+import argparse
 from pathlib import Path
 import gurobipy as gp
 from gurobipy import GRB
@@ -13,15 +14,21 @@ def read_instance(caminho):
     return n, flow, dist
 
 
-# Carregando dados da instância
+parser = argparse.ArgumentParser()
+parser.add_argument("instancia", nargs="?", default="nug12")
+parser.add_argument("--tempo-limite", type=float)
+args = parser.parse_args()
+
 BASE_DIR = Path(__file__).resolve().parent
-caminho = BASE_DIR.parent / "data" / "instances" / "nug12.dat"
+caminho = BASE_DIR.parent / "data" / "instances" / f"{args.instancia}.dat"
 if not caminho.exists():
-    caminho = BASE_DIR / "data" / "instances" / "nug12.dat"
+    caminho = BASE_DIR / "data" / "instances" / f"{args.instancia}.dat"
 n, flow, dist = read_instance(caminho)
 
 # Modelo MIQP: Formulação Quadrática de Koopmans-Beckmann
 model = gp.Model("QAP_Quadratic")
+if args.tempo_limite is not None:
+    model.Params.TimeLimit = args.tempo_limite
 model.Params.NonConvex = 2
 
 x = model.addVars(n, n, vtype=GRB.BINARY, name="x")
@@ -47,3 +54,4 @@ model.optimize()
 
 if model.SolCount > 0:
     print(f"Custo Total Mínimo: {model.ObjVal:.0f}")
+    print(f"Limitante Inferior: {model.ObjBound:.0f} (gap {100 * model.MIPGap:.2f}%)")
